@@ -5,8 +5,17 @@ import torch.nn.functional as F
 
 from .transforms import CenterAffine
 
+torch.gather
+
 
 def gather_feature(fmap, index, mask=None, use_transform=False):
+    """
+    
+    batch_size, 2, h, w
+    batch_size, dim
+    batch_size, dim
+    """
+
     if use_transform:
         # change a (N, C, H, W) tenor to (N, HxW, C) shape
         batch, channel = fmap.shape[:2]
@@ -14,6 +23,8 @@ def gather_feature(fmap, index, mask=None, use_transform=False):
 
     dim = fmap.size(-1)
     index = index.unsqueeze(len(index.shape)).expand(*index.shape, dim)
+    # fmap [batch_size, h*w, c]
+    # index [batch_size, dim, c]
     fmap = fmap.gather(dim=1, index=index)
     if mask is not None:
         # this part is not called in Res18 dcn COCO
@@ -62,7 +73,9 @@ class CenterNetDecoder(object):
         scores = scores.reshape(batch, K, 1)
 
         half_w, half_h = wh[..., 0:1] / 2, wh[..., 1:2] / 2
-        bboxes = torch.cat([xs - half_w, ys - half_h, xs + half_w, ys + half_h], dim=2)
+        bboxes = torch.cat(
+            [xs - half_w, ys - half_h, xs + half_w, ys + half_h], dim=2
+        )
 
         detections = (bboxes, scores, clses)
 
@@ -113,7 +126,12 @@ class CenterNetDecoder(object):
         batch, channel, height, width = scores.shape
 
         # get topk score and its index in every H x W(channel dim) feature map
-        topk_scores, topk_inds = torch.topk(scores.reshape(batch, channel, -1), K)
+        topk_scores, topk_inds = torch.topk(
+            scores.reshape(batch, channel, -1), K
+        )
+        if isinstance(height, torch.Tensor):
+            height = height.to(topk_inds.device)
+            width = width.to(topk_inds.device)
 
         topk_inds = topk_inds % (height * width)
         topk_ys = (topk_inds / width).int().float()
@@ -123,8 +141,14 @@ class CenterNetDecoder(object):
         topk_score, index = torch.topk(topk_scores.reshape(batch, -1), K)
         # div by K because index is grouped by K(C x K shape)
         topk_clses = (index / K).int()
-        topk_inds = gather_feature(topk_inds.view(batch, -1, 1), index).reshape(batch, K)
-        topk_ys = gather_feature(topk_ys.reshape(batch, -1, 1), index).reshape(batch, K)
-        topk_xs = gather_feature(topk_xs.reshape(batch, -1, 1), index).reshape(batch, K)
+        topk_inds = gather_feature(topk_inds.view(batch, -1, 1), index).reshape(
+            batch, K
+        )
+        topk_ys = gather_feature(topk_ys.reshape(batch, -1, 1), index).reshape(
+            batch, K
+        )
+        topk_xs = gather_feature(topk_xs.reshape(batch, -1, 1), index).reshape(
+            batch, K
+        )
 
         return topk_score, topk_inds, topk_clses, topk_ys, topk_xs

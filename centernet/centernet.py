@@ -21,7 +21,11 @@ from .centernet_head import CenternetHead
 
 __all__ = ["CenterNet"]
 
-_resnet_mapper = {18: resnet.resnet18, 50: resnet.resnet50, 101: resnet.resnet101}
+_resnet_mapper = {
+    18: resnet.resnet18,
+    50: resnet.resnet50,
+    101: resnet.resnet101,
+}
 
 
 class ResnetBackbone(Backbone):
@@ -29,7 +33,9 @@ class ResnetBackbone(Backbone):
         super().__init__()
         depth = cfg.MODEL.RESNETS.DEPTH
         backbone = _resnet_mapper[depth](pretrained=pretrained)
-        self.stage0 = nn.Sequential(backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool)
+        self.stage0 = nn.Sequential(
+            backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool
+        )
         self.stage1 = backbone.layer1
         self.stage2 = backbone.layer2
         self.stage3 = backbone.layer3
@@ -44,8 +50,34 @@ class ResnetBackbone(Backbone):
         return x
 
 
+@BACKBONE_REGISTRY.register()
+def build_torch_backbone(cfg, input_shape=None):
+    """
+    Build a backbone.
+
+    Returns:
+        an instance of :class:`Backbone`
+    """
+    if input_shape is None:
+        input_shape = ShapeSpec(channels=len(cfg.MODEL.PIXEL_MEAN))
+
+    backbone = ResnetBackbone(cfg, input_shape)
+    assert isinstance(backbone, Backbone)
+    return backbone
+
+
 def reg_l1_loss(output, mask, index, target):
+    """
+    batch_size, 2, h, w
+    batch_size, dim
+    batch_size, dim
+    batch_size, dim, 2
+    """
+
+    # 从 [batch_size, 2, h, w] 中获取若干结果
+    # 得到的结果形式是 [batch_size, dim, 2]
     pred = gather_feature(output, index, use_transform=True)
+
     mask = mask.unsqueeze(dim=2).expand_as(pred).float()
     # loss = F.l1_loss(pred * mask, target * mask, reduction='elementwise_mean')
     loss = F.l1_loss(pred * mask, target * mask, reduction="sum")
@@ -79,22 +111,6 @@ def modified_focal_loss(pred, gt):
     return loss
 
 
-@BACKBONE_REGISTRY.register()
-def build_torch_backbone(cfg, input_shape=None):
-    """
-    Build a backbone.
-
-    Returns:
-        an instance of :class:`Backbone`
-    """
-    if input_shape is None:
-        input_shape = ShapeSpec(channels=len(cfg.MODEL.PIXEL_MEAN))
-
-    backbone = ResnetBackbone(cfg, input_shape)
-    assert isinstance(backbone, Backbone)
-    return backbone
-
-
 @META_ARCH_REGISTRY.register()
 class CenterNet(nn.Module):
     """
@@ -120,8 +136,12 @@ class CenterNet(nn.Module):
         self.head = CenternetHead(cfg)
 
         self.mean, self.std = cfg.MODEL.PIXEL_MEAN, cfg.MODEL.PIXEL_STD
-        pixel_mean = torch.Tensor(cfg.MODEL.PIXEL_MEAN).to(self.device).view(3, 1, 1)
-        pixel_std = torch.Tensor(cfg.MODEL.PIXEL_STD).to(self.device).view(3, 1, 1)
+        pixel_mean = (
+            torch.Tensor(cfg.MODEL.PIXEL_MEAN).to(self.device).view(3, 1, 1)
+        )
+        pixel_std = (
+            torch.Tensor(cfg.MODEL.PIXEL_STD).to(self.device).view(3, 1, 1)
+        )
         self.normalizer = lambda x: (x - pixel_mean) / pixel_std
 
         self.to(self.device)
@@ -183,22 +203,27 @@ class CenterNet(nn.Module):
         for k in gt_dict:
             gt_dict[k] = gt_dict[k].to(cur_device)
 
+        # 分类结果的损失函数，是对所有点都计算
         loss_cls = modified_focal_loss(pred_score, gt_dict["score_map"])
 
         mask = gt_dict["reg_mask"]
         index = gt_dict["index"]
         index = index.to(torch.long)
+
+        # 长宽以及中心点偏移的结果，只对bbox的位置进行计算
         # width and height loss, better version
         loss_wh = reg_l1_loss(pred_dict["wh"], mask, index, gt_dict["wh"])
-
-        # regression loss
         loss_reg = reg_l1_loss(pred_dict["reg"], mask, index, gt_dict["reg"])
 
         loss_cls *= self.cfg.MODEL.CENTERNET.LOSS.CLS_WEIGHT
         loss_wh *= self.cfg.MODEL.CENTERNET.LOSS.WH_WEIGHT
         loss_reg *= self.cfg.MODEL.CENTERNET.LOSS.REG_WEIGHT
 
-        loss = {"loss_cls": loss_cls, "loss_box_wh": loss_wh, "loss_center_reg": loss_reg}
+        loss = {
+            "loss_cls": loss_cls,
+            "loss_box_wh": loss_wh,
+            "loss_center_reg": loss_reg,
+        }
         # print(loss)
         return loss
 
@@ -217,11 +242,18 @@ class CenterNet(nn.Module):
         size_wh = np.array([new_w, new_h], dtype=np.float32)
         down_scale = self.cfg.MODEL.CENTERNET.DOWN_SCALE
         img_info = dict(
-            center=center_wh, size=size_wh, height=new_h // down_scale, width=new_w // down_scale
+            center=center_wh,
+            size=size_wh,
+            height=new_h // down_scale,
+            width=new_w // down_scale,
         )
 
         pad_value = [-x / y for x, y in zip(self.mean, self.std)]
-        aligned_img = torch.Tensor(pad_value).reshape((1, -1, 1, 1)).expand(n, c, new_h, new_w)
+        aligned_img = (
+            torch.Tensor(pad_value)
+            .reshape((1, -1, 1, 1))
+            .expand(n, c, new_h, new_w)
+        )
         aligned_img = aligned_img.to(images.tensor.device)
 
         pad_w, pad_h = math.ceil((new_w - w) / 2), math.ceil((new_h - h) / 2)
@@ -263,7 +295,7 @@ class CenterNet(nn.Module):
         Normalize, pad and batch the input images.
         """
         images = [x["image"].to(self.device) for x in batched_inputs]
-        images = [self.normalizer(img/255.) for img in images]
+        images = [self.normalizer(img / 255.0) for img in images]
         images = ImageList.from_tensors(images, self.backbone.size_divisibility)
         return images
 

@@ -1,18 +1,14 @@
 _BASE_: "Base-CenterNet.yaml"
 MODEL:
-  # WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
-  # WEIGHTS: 'https://download.pytorch.org/models/resnet50-19c8e357.pth'
-  
+  WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
   META_ARCHITECTURE: "CenterNet"
   BACKBONE:
     NAME: "build_torch_backbone"
   RESNETS:
     DEPTH: 18
     OUT_FEATURES: ["res5"]
-  WEIGHTS: ""
   PIXEL_MEAN: [0.485, 0.456, 0.406]
   PIXEL_STD: [0.229, 0.224, 0.225]
-
   CENTERNET:
     DECONV_CHANNEL: [512, 256, 128, 64]
     DECONV_KERNEL: [4, 4, 4]
@@ -22,12 +18,10 @@ MODEL:
     DOWN_SCALE: 4
     MIN_OVERLAP: 0.7
     TENSOR_DIM: 128
-
 SOLVER:
   STEPS: (81000, 108000)
   MAX_ITER: 126000
-
 INPUT:
   FORMAT: 'RGB'
   MIN_SIZE_TEST: 0
-
+OUTPUT_DIR: ./logs/centernet-res18-without-dcn

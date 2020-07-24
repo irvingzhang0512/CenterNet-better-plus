@@ -1,3 +1,6 @@
+third_party/
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

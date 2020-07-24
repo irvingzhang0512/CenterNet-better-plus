@@ -87,34 +87,49 @@ class DeconvLayer(nn.Module):
         deconv_stride=2,
         deconv_pad=1,
         deconv_out_pad=0,
+        enable_dcn=True,
         modulate_deform=True,
     ):
         super(DeconvLayer, self).__init__()
-        if modulate_deform:
-            self.dcn = ModulatedDeformConvWithOff(
-                in_planes, out_planes, kernel_size=3, deformable_groups=1
+        self.enable_dcn = enable_dcn
+        if enable_dcn:
+            if modulate_deform:
+                self.dcn = ModulatedDeformConvWithOff(
+                    in_planes, out_planes, kernel_size=3, deformable_groups=1
+                )
+            else:
+                self.dcn = DeformConvWithOff(
+                    in_planes, out_planes, kernel_size=3, deformable_groups=1
+                )
+            self.dcn_bn = nn.BatchNorm2d(out_planes)
+            self.up_sample = nn.ConvTranspose2d(
+                in_channels=out_planes,
+                out_channels=out_planes,
+                kernel_size=deconv_kernel,
+                stride=deconv_stride,
+                padding=deconv_pad,
+                output_padding=deconv_out_pad,
+                bias=False,
             )
         else:
-            self.dcn = DeformConvWithOff(in_planes, out_planes, kernel_size=3, deformable_groups=1)
-
-        self.dcn_bn = nn.BatchNorm2d(out_planes)
-        self.up_sample = nn.ConvTranspose2d(
-            in_channels=out_planes,
-            out_channels=out_planes,
-            kernel_size=deconv_kernel,
-            stride=deconv_stride,
-            padding=deconv_pad,
-            output_padding=deconv_out_pad,
-            bias=False,
-        )
+            self.up_sample = nn.ConvTranspose2d(
+                in_channels=in_planes,
+                out_channels=out_planes,
+                kernel_size=deconv_kernel,
+                stride=deconv_stride,
+                padding=deconv_pad,
+                output_padding=deconv_out_pad,
+                bias=False,
+            )
         self._deconv_init()
         self.up_bn = nn.BatchNorm2d(out_planes)
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.dcn(x)
-        x = self.dcn_bn(x)
-        x = self.relu(x)
+        if self.enable_dcn:
+            x = self.dcn(x)
+            x = self.dcn_bn(x)
+            x = self.relu(x)
         x = self.up_sample(x)
         x = self.up_bn(x)
         x = self.relu(x)
@@ -126,7 +141,9 @@ class DeconvLayer(nn.Module):
         c = (2 * f - 1 - f % 2) / (2.0 * f)
         for i in range(w.size(2)):
             for j in range(w.size(3)):
-                w[0, 0, i, j] = (1 - math.fabs(i / f - c)) * (1 - math.fabs(j / f - c))
+                w[0, 0, i, j] = (1 - math.fabs(i / f - c)) * (
+                    1 - math.fabs(j / f - c)
+                )
         for c in range(1, w.size(0)):
             w[c, 0, :, :] = w[0, 0, :, :]
 
@@ -147,18 +164,21 @@ class CenternetDeconv(nn.Module):
             channels[0],
             channels[1],
             deconv_kernel=deconv_kernel[0],
+            enable_dcn=cfg.MODEL.CENTERNET.ENABLE_DCN,
             modulate_deform=modulate_deform,
         )
         self.deconv2 = DeconvLayer(
             channels[1],
             channels[2],
             deconv_kernel=deconv_kernel[1],
+            enable_dcn=cfg.MODEL.CENTERNET.ENABLE_DCN,
             modulate_deform=modulate_deform,
         )
         self.deconv3 = DeconvLayer(
             channels[2],
             channels[3],
             deconv_kernel=deconv_kernel[2],
+            enable_dcn=cfg.MODEL.CENTERNET.ENABLE_DCN,
             modulate_deform=modulate_deform,
         )
 
