@@ -10,7 +10,6 @@ torch.gather
 
 def gather_feature(fmap, index, mask=None, use_transform=False):
     """
-    
     batch_size, 2, h, w
     batch_size, dim
     batch_size, dim
@@ -37,6 +36,7 @@ def gather_feature(fmap, index, mask=None, use_transform=False):
 class CenterNetDecoder(object):
     @staticmethod
     def decode(fmap, wh, reg=None, cat_spec_wh=False, K=100):
+        # TODO: add score threshold
         r"""
         decode output feature map to detection results
 

@@ -10,6 +10,7 @@ from detectron2.utils import comm
 
 from centernet.config import add_centernet_config
 from centernet.defaults import DefaultTrainer2
+import centernet.data  # noqa
 
 
 class Trainer(DefaultTrainer2):
