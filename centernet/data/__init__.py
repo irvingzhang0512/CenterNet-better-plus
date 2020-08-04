@@ -1,1 +1,1 @@
-from . import coco_human
+from . import coco_human_v2

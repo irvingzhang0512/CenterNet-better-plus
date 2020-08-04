@@ -1,4 +1,7 @@
 _BASE_: "Base-CenterNet.yaml"
+DATASETS:
+  TRAIN: ("coco_person_2017_train",)
+  TEST: ("coco_person_2017_val",)
 MODEL:
   WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
   META_ARCHITECTURE: "CenterNet"
@@ -12,9 +15,9 @@ MODEL:
   CENTERNET:
     DECONV_CHANNEL: [512, 256, 128, 64]
     DECONV_KERNEL: [4, 4, 4]
-    NUM_CLASSES: 80
+    NUM_CLASSES: 1
     ENABLE_DCN: True
-    MODULATE_DEFORM: True
+    MODULATE_DEFORM: False
     BIAS_VALUE: -2.19
     DOWN_SCALE: 4
     MIN_OVERLAP: 0.7
@@ -25,4 +28,4 @@ SOLVER:
 INPUT:
   FORMAT: 'RGB'
   MIN_SIZE_TEST: 0
-OUTPUT_DIR: ./logs/centernet-res18-without-dcn
+OUTPUT_DIR: ./logs/centernet-res18-person-only

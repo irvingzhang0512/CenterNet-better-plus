@@ -270,7 +270,7 @@ class CenterNet(nn.Module):
 
         return [{"instances": det_instance}]
 
-    def decode_prediction(self, pred_dict, img_info):
+    def decode_prediction(self, pred_dict, img_info, score_thres=None):
         """
         Args:
             pred_dict(dict): a dict contains all information of prediction
@@ -281,6 +281,12 @@ class CenterNet(nn.Module):
         wh = pred_dict["wh"]
 
         boxes, scores, classes = CenterNetDecoder.decode(fmap, wh, reg)
+        if score_thres is not None:
+            selected_idx = torch.where(scores >= score_thres)[0]
+            boxes = torch.index_select(boxes, 0, selected_idx)
+            scores = torch.index_select(scores, 0, selected_idx)
+            classes = torch.index_select(classes, 0, selected_idx)
+
         # boxes = Boxes(boxes.reshape(boxes.shape[-2:]))
         scores = scores.reshape(-1)
         classes = classes.reshape(-1).to(torch.int64)

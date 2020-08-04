@@ -1,19 +1,22 @@
 _BASE_: "Base-CenterNet.yaml"
+DATASETS:
+  TRAIN: ("coco_person_2017_train",)
+  TEST: ("coco_person_2017_val",)
 MODEL:
   WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
   META_ARCHITECTURE: "CenterNet"
   BACKBONE:
     NAME: "build_torch_backbone"
   RESNETS:
-    DEPTH: 18
+    DEPTH: 50
     OUT_FEATURES: ["res5"]
   PIXEL_MEAN: [0.485, 0.456, 0.406]
   PIXEL_STD: [0.229, 0.224, 0.225]
   CENTERNET:
-    DECONV_CHANNEL: [512, 256, 128, 64]
+    DECONV_CHANNEL: [2048, 256, 128, 64]
     DECONV_KERNEL: [4, 4, 4]
-    NUM_CLASSES: 80
-    ENABLE_DCN: True
+    NUM_CLASSES: 1
+    ENABLE_DCN: False
     MODULATE_DEFORM: True
     BIAS_VALUE: -2.19
     DOWN_SCALE: 4
@@ -22,7 +25,8 @@ MODEL:
 SOLVER:
   STEPS: (81000, 108000)
   MAX_ITER: 126000
+  IMS_PER_BATCH: 128
+  BASE_LR: 0.01 # Note that RetinaNet uses a different default learning rate
 INPUT:
   FORMAT: 'RGB'
-  MIN_SIZE_TEST: 0
-OUTPUT_DIR: ./logs/centernet-res18-without-dcn
+OUTPUT_DIR: ./logs/centernet-res50-without-dcn-person-only

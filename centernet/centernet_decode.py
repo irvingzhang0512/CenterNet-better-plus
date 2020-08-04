@@ -60,8 +60,8 @@ class CenterNetDecoder(object):
         else:
             xs = xs.view(batch, K, 1) + 0.5
             ys = ys.view(batch, K, 1) + 0.5
-        wh = gather_feature(wh, index, use_transform=True)
 
+        wh = gather_feature(wh, index, use_transform=True)
         if cat_spec_wh:
             wh = wh.view(batch, K, channel, 2)
             clses_ind = clses.view(batch, K, 1, 1).expand(batch, K, 1, 2).long()
